@@ -7,7 +7,7 @@ start() ->
 
 looper() -> looper({offset, 0}).
 looper(Params) ->
-  case pushMessage(Params) of
+  case sendMessage(Params) of
     {ok, {_, _, Body}} ->
       io:format("all good ~n");
     _Else ->
@@ -24,7 +24,7 @@ looper(Params) ->
       looper({offset, 0})
   end.
 
-pushMessage(Params) ->
+sendMessage(Params) ->
   Request = builder:build_request("getUpdates", [Params]),
   io:format("~p~n", [Request]),
   httpc:request(

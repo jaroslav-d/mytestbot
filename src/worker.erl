@@ -10,6 +10,9 @@ looper() ->
       Text = <<"I need your skills">>,
       io:format("Hi! ~n"),
       sendMessageCient(Cid, Text);
+    {Cid, <<"привет"/utf8>>} ->
+      Text = <<"привет"/utf8>>,
+      sendMessageCient(Cid, Text);
     {Cid, <<"You son over bitch. I'm in">>} ->
       Text = <<"You are a friend Rick's team">>,
       sendMessageCient(Cid, Text);
