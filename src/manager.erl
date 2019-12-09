@@ -9,10 +9,12 @@ looper() -> looper({offset, 0}).
 looper(Params) ->
   case sendMessage(Params) of
     {ok, {_, _, Body}} ->
-      io:format("all good ~n");
+      io:format("all good ~n"),
+      ok;
     _Else ->
       Body = [],
-      io:format("all bad :'( ~n")
+      io:format("all bad :'( ~n"),
+      ok
   end,
   case parser:parse(Body, getUpdates) of
     {NewParams, Msg} ->

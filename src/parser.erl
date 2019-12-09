@@ -37,43 +37,53 @@ findRec([{_, Value}|Tail], TargetKey) ->
 
 parse_exp(Bin) -> parse_exp(Bin, {0, 0}, []).
 parse_exp(<<>>, _, []) -> empty;
+parse_exp(<<"">>, _, []) ->empty;
 parse_exp(<<>>, _, List) -> List;
 parse_exp(<<Hbin/utf8, Tbin/binary>>, {Priority, Idx}, List) ->
-  NewList = 
-  case Hbin of
-    43 -> %plus
-      NewPriority = Priority,
-      List ++ [{NewPriority + 1, Idx, Hbin, plus}];
+  
+  {NewPriority, NewIdx, NewList} = case Hbin of
+    43 -> %plus 
+      {Priority, 
+        Idx + 1, 
+        List ++ [{Priority + 1, Idx, Hbin, plus}] };
     45 -> %minus
-      NewPriority = Priority,
-      List ++ [{NewPriority + 1, Idx, Hbin, minus}];
+      {Priority,
+        Idx + 1,
+        List ++ [{Priority + 1, Idx, Hbin, minus}] };
     42 -> %multiplicate
-      NewPriority = Priority,
-      List ++ [{NewPriority + 2, Idx, Hbin, mult}];
+      {Priority,
+        Idx + 1,
+        List ++ [{Priority + 2, Idx, Hbin, mult}] };
     47 -> %division
-      NewPriority = Priority,
-      List ++ [{NewPriority + 2, Idx, Hbin, division}];
+      {Priority,
+        Idx + 1,
+        List ++ [{Priority + 2, Idx, Hbin, division}] };
     40 -> %bracket (
-      NewPriority = Priority + 3,
-      List ++ [{NewPriority, Idx, Hbin, bra}];
+      {Priority + 3,
+        Idx + 1,
+        List ++ [{Priority, Idx, Hbin, bra}] };
     41 -> %bracket )
-      NewPriority = Priority - 3,
-      List ++ [{NewPriority, Idx, Hbin, ket}];
+      {Priority - 3,
+        Idx + 1, 
+        List ++ [{Priority, Idx, Hbin, ket}] };
+    32 -> %space " "
+      {Priority, Idx, List};
     _Else ->
-      NewPriority = Priority,
-      List ++ [{NewPriority, Idx, Hbin, number}]
+      {Priority,
+        Idx + 1, 
+        List ++ [{Priority, Idx, Hbin, number}] }
   end,
-  parse_exp(Tbin, {NewPriority, Idx + 1}, NewList).
+  parse_exp(Tbin, {NewPriority, NewIdx}, NewList).
 
-parse_my_list(List) ->
+my_list_to_binary(List) ->
   F2 = fun({_, _, Token, _}, Acc) -> 
     if is_list(Token) -> 
-      Acc ++ Token; 
+      Acc ++ Token;
     true -> 
       Acc ++ [Token] 
     end 
   end,
-  list_to_binary(lists:foldl(F2, [], List)).
+  try list_to_binary(lists:foldl(F2, [], List)) catch error:Reason -> no_numbers end.
 
 list_to_num([]) -> 0;
 list_to_num(Num) ->
