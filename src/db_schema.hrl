@@ -1,0 +1,1 @@
+-record(client, {cid, second_name, first_name, third_name}).

@@ -28,17 +28,15 @@ purgatory(List) ->
   F = fun({P, Idx, Token, Key}, {HList, TList, Acc, Way}) ->
     case {Key, Acc, Way} of
       {bra, number, left} ->
-        {HList, TList ++ [{P, Idx, Token, Key}], stop, left};
+        {HList, [{P, Idx, Token, Key}|TList], stop, left};
       {bra, minus, left} ->
-        {HList, TList ++ [{P, Idx, Token, Key}], stop, left};
+        {HList, [{P, Idx, Token, Key}|TList], stop, left};
       {number, number, left} ->
-        {[Token|HList], TList ++ [{P, Idx, Token, Key}], number, left};
+        {[Token|HList], [{P, Idx, Token, Key}|TList], number, left};
       {numberlist, number, left} ->
-        {Token ++ HList, TList ++ [{P, Idx, Token, Key}], number, left};
+        {Token ++ HList, [{P, Idx, Token, Key}|TList], number, left};
       {minus, number, left} ->
-        {[Token|HList], TList ++ [{P, Idx, Token, Key}], minus, left};
-      {number, minus, left} ->
-        {HList -- "-", TList -- [lists:last(TList)], stop, left};
+        {[Token|HList], [{P, Idx, Token, Key}|TList], minus, left};
       {ket, number, right} ->
         {HList, TList ++ [{P, Idx, Token, Key}], stop, right};
       {number, number, right} ->
@@ -53,7 +51,8 @@ purgatory(List) ->
   RightFold = lists:foldl(F, {[], [], number, right}, RightList),
   {StrLeft, LTrash, _, _} = LeftFold,
   {StrRight, RTrash, _, _} = RightFold,
-  {LastLTrash, LastRTrash} = try {lists:last(LTrash),lists:last(RTrash)} 
+  if LTrash /= [] -> [HeadLTrash|_] = LTrash; true -> HeadLTrash = {null,null,null,null} end,
+  {LastLTrash, LastRTrash} = try {HeadLTrash, lists:last(RTrash)} 
   catch error:Reason -> {{null,null,null,null}, {null,null,null,null}}
   end,
   {{_,_,_,IsBra},{_,_,_,IsKet}} = {LastLTrash, LastRTrash},
@@ -63,21 +62,20 @@ purgatory(List) ->
     {_, ket} -> {LTrash, RTrash -- [LastRTrash]};
     {_, _} -> {LTrash, RTrash}
   end,
-  NewLeftList = LeftList -- NewLTrash,
+  BLeftList = LeftList -- NewLTrash,
+  NewLeftList = case NewLTrash of
+    [{Pr,In,Tok,minus}|_] -> BLeftList ++ [{Pr,In,43,plus}];
+    _Else -> BLeftList
+  end,
   NewRightList = RightList -- NewRTrash,
   NumLeft = parser:list_to_num(StrLeft),
   NumRight = parser:list_to_num(StrRight),
   Result = case Operator of
-    plus ->
-      NumLeft + NumRight;
-    minus ->
-      NumLeft - NumRight;
-    mult ->
-      NumLeft * NumRight;
-    division ->
-      NumLeft / NumRight;
-    _ ->
-      error
+    plus -> NumLeft + NumRight;
+    minus -> NumLeft - NumRight;
+    mult -> NumLeft * NumRight;
+    division -> NumLeft / NumRight;
+    _ -> error
   end,
   ResultElem = [{-1, 0, parser:num_to_list(Result), numberlist}],
   case {NewLeftList, NewRightList} of
@@ -89,3 +87,11 @@ purgatory(List) ->
         NewLeftList ++ ResultElem ++ NewRightList), 
       {NewList, continue}
   end.
+
+
+%(1+2*(2+3*(1+1)))/(1+0.2)
+%(45+47)*5+6-5*(2+3)
+%92*5+6-5*5
+%(-10+2)*5-3*10*(1*(-1+2))
+%10 + 2 - 10*(-3) + 2*5 + 10
+%-2-2-2

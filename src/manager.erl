@@ -1,5 +1,7 @@
 -module(manager).
 -compile(export_all).
+-include_lib("stdlib/include/qlc.hrl").
+-include("db_schema.hrl").
 
 start() ->
   ets:new(workers, [set, public, named_table]),
@@ -40,12 +42,12 @@ sendWorker({Cid, Text}) ->
   case ets:member(workers, Cid) of
     true ->
       [{_, Pid}] = ets:lookup(workers, Cid),
-      io:format("~p~n", [{Cid, Pid}]),
+      io:format("Old ~p~n", [{Cid, Pid}]),
       Pid ! {Cid, Text};
     false ->
       Pid = worker:start(),
       ets:insert(workers, {Cid, Pid}),
-      io:format("~p~n", [{Cid, Pid}]),
+      io:format("New ~p~n", [{Cid, Pid}]),
       Pid ! {Cid, Text}
   end.
 
