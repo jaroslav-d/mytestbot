@@ -4,10 +4,17 @@
 parse([], getUpdates) -> empty;
 parse(Body, getUpdates) ->
   [{<<"ok">>,true}, {<<"result">>, Updates}] = jsx:decode(Body),
-  parseUpdates(Updates).
+  try parseUpdateText(Updates)
+  catch error:Reason -> {parseUpdateDif(Updates), no_text}
+  end.
 
-parseUpdates([]) -> empty;
-parseUpdates([Head|Tail]) ->
+parseUpdateDif([]) -> empty;
+parseUpdateDif([Head|Tail]) ->
+  {_, Uid} = findRec(Head, <<"update_id">>),
+  {offset,Uid+1}.
+
+parseUpdateText([]) -> empty;
+parseUpdateText([Head|Tail]) ->
   {_, Uid} = findRec(Head, <<"update_id">>),
   Chat = findRec(Head, <<"chat">>),
   {_, Cid} = findRec(Chat, <<"id">>),

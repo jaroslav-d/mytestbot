@@ -10,12 +10,14 @@
 -export([start/2, stop/1]).
 
 start(_StartType, _StartArgs) ->
-%  ssl:start(),
+  ssl:start(),
+  mnesia:start(),
 %  manager:start(),
   mytestbot_sup:start_link().
 
 stop(_State) ->
-%  ssl:stop(),
+  mnesia:start(),
+  ssl:stop(),
   ok.
 
 %% internal functions

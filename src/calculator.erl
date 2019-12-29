@@ -4,6 +4,7 @@
 calc(Bin) -> calc(lazy_calc(Bin), []).
 calc(empty, _) -> empty;
 calc(stop, Acc) -> Acc;
+calc(Fun, [no_numbers|_]) -> no_numbers;
 calc(Fun, Acc) ->
   [Bin|NewFun] = Fun(),
   calc(NewFun, Acc ++ [Bin]).
@@ -13,6 +14,8 @@ lazy_calc(Bin) ->
   lazy_calc(List, continue).
 lazy_calc(empty, continue) ->
   fun() -> [empty|stop] end;
+lazy_calc(no_numbers, _) -> 
+  fun() -> [no_numbers|stop] end;
 lazy_calc(List, continue) ->
   fun() ->
     {NewList, Condition} = purgatory(List),

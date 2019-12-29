@@ -19,8 +19,10 @@ looper(Params) ->
       ok
   end,
   case parser:parse(Body, getUpdates) of
+    {NewParams, no_text} ->
+      looper(NewParams);
     {NewParams, Msg} ->
-      io:format("all good ~n"),
+      io:format("all good ~p ~n", [Msg]),
       sendWorker(Msg),
       looper(NewParams);
     empty ->
