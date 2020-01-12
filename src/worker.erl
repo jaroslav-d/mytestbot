@@ -45,7 +45,7 @@ is_registered(Cid) ->
   case mnesia:transaction(F) of
     {atomic, []} ->
       false;
-    {atomic, Record} ->
+    {atomic, _Record} ->
       true
   end.
 
@@ -67,7 +67,7 @@ registration(Cid) ->
               [] -> no_record;
               [[Rid, undefined]] ->
                   builder:build_update_db_client(Rid, LastName, FirstName, MiddleName, Cid);
-              [[Rid, DbCid]] -> DbCid == Cid
+              [[_Rid, DbCid]] -> DbCid == Cid
             end
           end;
         {no_name} ->
@@ -121,7 +121,8 @@ loop_lazy_calc() ->
       end;
     {Cid, Else} ->
       sendMessageClient(Cid, <<"You could see more if /lazy_calc_next call">>),
-      io:format("~p~n", [binary_to_list(Else)])
+      io:format("~p~n", [binary_to_list(Else)]),
+      ok
   end.
 loop_lazy_calc(stop) -> ok;
 loop_lazy_calc(Fun) ->
@@ -140,7 +141,8 @@ loop_lazy_calc(Fun) ->
       end;
     {Cid, Else} ->
       sendMessageClient(Cid, <<"Ok, I will stop to calc next">>),
-      io:format("~p~n", [binary_to_list(Else)])
+      io:format("~p~n", [binary_to_list(Else)]),
+      ok
   end.
 
 sendMessageClient(Cid, Text) ->
@@ -162,6 +164,7 @@ sendMessageClient(Cid, Text, keyboard, Buttons) ->
   ),
   io:format("keyboard ~p~n", [Result]),
   ok.
+
 sendMessageClient(Cid, Text, hide_keyboard) ->
   {ok, Result} = httpc:request(
     post,

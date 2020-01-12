@@ -7,7 +7,7 @@ build_request(Command, Params) ->
   Url = ?URL ++ "/" ++ Command,
   Headers = [{"Content-Type","application/json"}],
   ContentType = "application/json",
-  io:format("~p~n", [Params]),
+%  io:format("~p~n", [Params]),
   {Url, Headers, ContentType, jsx:encode(Params)}.
 
 build_Msg(Cid, Text) ->
@@ -31,7 +31,7 @@ build_write_db_new_client(Rid, BMessage) ->
   try split_name(BMessage) of
     {_, LastName, FirstName, MiddleName} ->
       mnesia:transaction(fun() -> mnesia:write(#client{rid = Rid,last_name = LastName,first_name = FirstName,middle_name = MiddleName}) end)
-  catch error:Reason -> no_names
+  catch error:_Reason -> no_names
   end.
 
 split_name(BMessage) ->

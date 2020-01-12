@@ -9,12 +9,12 @@ parse(Body, getUpdates) ->
   end.
 
 parseUpdateDif([]) -> empty;
-parseUpdateDif([Head|Tail]) ->
+parseUpdateDif([Head|_Tail]) ->
   {_, Uid} = findRec(Head, <<"update_id">>),
   {offset,Uid+1}.
 
 parseUpdateText([]) -> empty;
-parseUpdateText([Head|Tail]) ->
+parseUpdateText([Head|_Tail]) ->
   {_, Uid} = findRec(Head, <<"update_id">>),
   Chat = findRec(Head, <<"chat">>),
   {_, Cid} = findRec(Chat, <<"id">>),
@@ -44,7 +44,7 @@ findRec([{_, Value}|Tail], TargetKey) ->
 
 parse_exp(Bin) -> parse_exp(Bin, {0, 0}, []).
 parse_exp(<<>>, _, []) -> empty;
-parse_exp(<<"">>, _, []) ->empty;
+parse_exp(<<"">>, _, []) -> empty;
 parse_exp(<<>>, _, List) -> List;
 parse_exp(<<Hbin/utf8, Tbin/binary>>, {Priority, Idx}, List) ->
   
@@ -89,7 +89,7 @@ my_list_to_binary(List) ->
     true -> 
       Acc ++ [Token] 
     end 
-  end,
+    end,
   try list_to_binary(lists:foldl(F2, [], List)) catch error:Reason -> no_numbers end.
 
 list_to_num([]) -> 0;

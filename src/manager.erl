@@ -1,34 +1,46 @@
 -module(manager).
 -compile(export_all).
+-behaviour(gen_server).
 -include_lib("stdlib/include/qlc.hrl").
 -include("db_schema.hrl").
 
-start() ->
-  ets:new(workers, [set, public, named_table]),
-  spawn(manager, looper, []).
 
-looper() -> looper({offset, 0}).
-looper(Params) ->
-  case sendMessage(Params) of
+start_link() ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+call() ->
+  gen_server:call(?MODULE, ok, infinity).
+
+handle_call(_Request, _From, State) ->
+  case sendMessage(State) of
     {ok, {_, _, Body}} ->
-      io:format("all good ~n"),
-      ok;
+      io:format("all good ~n");
     _Else ->
       Body = [],
-      io:format("all bad :'( ~n"),
-      ok
+      io:format("all bad :'( ~n")
   end,
   case parser:parse(Body, getUpdates) of
-    {NewParams, no_text} ->
-      looper(NewParams);
-    {NewParams, Msg} ->
-      io:format("all good ~p ~n", [Msg]),
-      sendWorker(Msg),
-      looper(NewParams);
     empty ->
-      io:format("all bad :'( ~n"),
-      looper({offset, 0})
-  end.
+      NewState = {offset, 0},
+      io:format("all bad :'( ~n");
+    {NewState, no_text} ->
+      io:format("not text");
+    {NewState, Msg} ->
+      io:format("all good ~p ~n", [Msg]),
+      sendWorker(Msg)
+  end,
+  {reply, ok, NewState}.
+
+handle_cast(_Request, _State) ->
+  ok.
+
+init(_Args) ->
+  ets:new(workers, [set, public, named_table]),
+  spawn_link(fun F() -> call(), F() end),
+  {ok, {offset, 0}}.
+
+terminate(_Reason, _State) ->
+  ok.
 
 sendMessage(Params) ->
   Request = builder:build_request("getUpdates", [Params]),

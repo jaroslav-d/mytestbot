@@ -31,10 +31,9 @@ init([]) ->
                period => 1},
   ChildSpecs = [
     #{id => manager, 
-      start => {manager, start, []}, 
-      restart => permanent, 
-      shutdown => brutal_kill, 
-      type => supervisor
+      start => {manager, start_link, []}, 
+      restart => permanent,
+      shutdown => brutal_kill
     }
   ],
 %  ChildSpecs = [],
