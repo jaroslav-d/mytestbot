@@ -7,7 +7,7 @@ build_request(Command, Params) ->
   Url = ?URL ++ "/" ++ Command,
   Headers = [{"Content-Type","application/json"}],
   ContentType = "application/json",
-%  io:format("~p~n", [Params]),
+  io:format("~p~n", [Params]),
   {Url, Headers, ContentType, jsx:encode(Params)}.
 
 build_Msg(Cid, Text) ->

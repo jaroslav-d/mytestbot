@@ -1,20 +1,11 @@
-%%%-------------------------------------------------------------------
-%% @doc mytestbot top level supervisor.
-%% @end
-%%%-------------------------------------------------------------------
-
--module(mytestbot_sup).
-
+-module(worker_sup).
 -behaviour(supervisor).
-
 -export([start_link/0]).
-
 -export([init/1]).
-
--define(SERVER, ?MODULE).
+-export([start_child/1]).
 
 start_link() ->
-  supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+  supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 %% sup_flags() = #{strategy => strategy(),         % optional
 %%                 intensity => non_neg_integer(), % optional
@@ -29,19 +20,14 @@ init([]) ->
   SupFlags = #{strategy => one_for_all,
                intensity => 0,
                period => 1},
-  ChildSpecs = [
-    #{id => manager, 
-      start => {manager, start_link, []}, 
+  ChildSpecs = [],
+  {ok, {SupFlags, ChildSpecs}}.
+
+start_child(Cid) ->
+  ChildSpec =
+    #{id => Cid,
+      start => {worker, start_link, []}, 
       restart => permanent,
       shutdown => brutal_kill
     },
-    #{id => worker_sup, 
-      start => {worker_sup, start_link, []}, 
-      restart => transient,
-      type => supervisor
-    }
-  ],
-%  ChildSpecs = [],
-  {ok, {SupFlags, ChildSpecs}}.
-%% 
-%% internal functions
+  supervisor:start_child(?MODULE, ChildSpec).

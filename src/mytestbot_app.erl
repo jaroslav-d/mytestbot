@@ -12,11 +12,10 @@
 start(_StartType, _StartArgs) ->
   ssl:start(),
   mnesia:start(),
-%  manager:start(),
   mytestbot_sup:start_link().
 
 stop(_State) ->
-  mnesia:start(),
+  mnesia:stop(),
   ssl:stop(),
   ok.
 

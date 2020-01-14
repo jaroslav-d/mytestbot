@@ -4,7 +4,6 @@
 -include_lib("stdlib/include/qlc.hrl").
 -include("db_schema.hrl").
 
-
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -57,11 +56,10 @@ sendWorker({Cid, Text}) ->
     true ->
       [{_, Pid}] = ets:lookup(workers, Cid),
       io:format("Old ~p~n", [{Cid, Pid}]),
-      Pid ! {Cid, Text};
+      gen_server:cast(Pid, {Cid, Text});
     false ->
-      Pid = worker:start(),
+      {ok, Pid} = worker_sup:start_child(Cid),
       ets:insert(workers, {Cid, Pid}),
       io:format("New ~p~n", [{Cid, Pid}]),
-      Pid ! {Cid, Text}
+      gen_server:cast(Pid, {Cid, Text})
   end.
-
