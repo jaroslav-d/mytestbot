@@ -25,26 +25,18 @@ build_update_db_client(Rid, LastName, FirstName, MiddleName, Cid) ->
   mnesia:write(build_rd_client(Rid, LastName, FirstName, MiddleName, Cid)).
 
 build_rd_client(Rid, LastName, FirstName, MiddleName, Cid) ->
-  #client{rid = Rid, last_name = LastName, first_name = FirstName, middle_name = MiddleName, cid = Cid}.
+  #client{
+    rid = Rid,
+    last_name = LastName,
+    first_name = FirstName,
+    middle_name = MiddleName,
+    cid = Cid
+  }.
 
 build_write_db_new_client(Rid, BMessage) ->
-  try split_name(BMessage) of
-    {_, LastName, FirstName, MiddleName} ->
-      mnesia:transaction(fun() -> mnesia:write(#client{rid = Rid,last_name = LastName,first_name = FirstName,middle_name = MiddleName}) end)
-  catch error:_Reason -> no_names
+  case binary:split(BMessage, [<<" "/utf8>>], [global]) of
+    [LastName, FirstName, MiddleName] ->
+      F = fun() -> build_update_db_client(Rid,LastName,FirstName,MiddleName,undefined) end,
+      mnesia:transaction(F);
+    _Else -> no_names
   end.
-
-split_name(BMessage) ->
-  Message = binary_to_list(BMessage),
-  lists:foldl(
-    fun(X, {Idx, List1, List2, List3}) -> 
-      case {X,Idx} of 
-        {32,_} -> {Idx + 1, List1, List2, List3}; 
-        {_,0} -> {Idx, List1 ++ [X], List2, List3};
-        {_,1} -> {Idx, List1, List2 ++ [X], List3};
-        {_,2} -> {Idx, List1, List2, List3 ++ [X]} 
-      end
-    end,
-    {0, [], [], []},
-    Message
-  ).

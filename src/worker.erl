@@ -68,7 +68,7 @@ handle_cast( {Cid, <<"/lazy_calc_next"/utf8>>}, {Fun, lazy_calc}) ->
     {Text, state} -> sendMessageClient(Cid, Text, state);
     {Text, NewFun, lazy_calc} -> sendMessageClient(Cid, Text, {NewFun, lazy_calc})
   end;
-handle_cast( {Cid, _Else}, State) ->
+handle_cast( {Cid, _Else}, _State) ->
   sendMessageClient(Cid, <<"Incorrect command">>, state).
 
 %% for OTP 21 and higher
@@ -93,8 +93,8 @@ is_registered(Cid) ->
   end.
 
 registration(Cid, Message) ->
-  F = try builder:split_name(Message) of
-    {_, LastName, FirstName, MiddleName} ->
+  F = try binary:split(Message, [<<" "/utf8>>], [global]) of
+    [LastName, FirstName, MiddleName] ->
       fun() ->
         case builder:build_select_db_client('$1', LastName, FirstName, MiddleName, '$2') of
           [] -> no_record;

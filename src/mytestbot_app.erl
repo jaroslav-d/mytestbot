@@ -11,8 +11,9 @@
 
 start(_StartType, _StartArgs) ->
   ssl:start(),
-  mnesia:start(),
-  mytestbot_sup:start_link().
+%%  mnesia:start(),
+%%  mytestbot_sup:start_link().
+  mnesia:start().
 
 stop(_State) ->
   mnesia:stop(),
