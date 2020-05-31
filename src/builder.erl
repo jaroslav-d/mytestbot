@@ -15,6 +15,8 @@ build_Msg(Cid, Text) ->
 build_keyboard(Cid, Text, Buttons) ->
   Iter = fun(X, Acc) -> Acc ++ [[[{<<"text">>, X}]]] end,
   build_Msg(Cid, Text) ++ [{<<"reply_markup">>, [{<<"keyboard">>, lists:foldl(Iter, [], Buttons) }] }].
+build_inline_keyboard(Cid, Text, Buttons) ->
+  build_Msg(Cid, Text) ++ [{<<"reply_markup">>, [{<<"inline_keyboard">>, Buttons}] }].
 build_hide_keyboard(Cid, Text) ->
   build_Msg(Cid, Text) ++ [{<<"reply_markup">>, [{<<"hide_keyboard">>, true}]}].
 

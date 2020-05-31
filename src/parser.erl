@@ -6,7 +6,10 @@ parse(Body, getUpdates) ->
   [{<<"ok">>,true}, {<<"result">>, Updates}] = jsx:decode(Body),
   try parseUpdateText(Updates)
   catch error:Reason -> {parseUpdateDif(Updates), no_text}
-  end.
+  end;
+parse(Body, sendMessage) ->
+  DBody = jsx:decode(Body),
+  findRec(DBody, <<"message_id">>).
 
 parseUpdateDif([]) -> empty;
 parseUpdateDif([Head|_Tail]) ->
