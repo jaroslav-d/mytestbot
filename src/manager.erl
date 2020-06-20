@@ -22,7 +22,8 @@ handle_call(_Request, _From, State) ->
     empty ->
       NewState = {offset, 0},
       io:format("all bad :'( ~n");
-    {NewState, no_text} ->
+    {offset, Uid} ->
+      NewState = {offset, Uid},
       io:format("not text");
     {NewState, Msg} ->
       io:format("all good ~p ~n", [Msg]),

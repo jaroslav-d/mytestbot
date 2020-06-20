@@ -30,17 +30,29 @@ handle_cast( {Cid, Message}, registration) ->
     {Text, Buttons, registration} -> sendMessageClient(Cid, Text, keyboard, Buttons, registration)
   end;
 
-%%handle_cast( {Cid, <<"/rec">>}, _State) ->
-%%  sendMessageClient(Cid, <<"На какое время хотите записаться?"/utf8>>, state);
-%%F=fun Loop([], Label) -> [];
-%%      Loop([{<<"text">>, SValue},{<<"callback_data">>, Mark}], Label) ->
-%%          case {Mark =:= Label, SValue} of
-%%            {true, <<226,156,133,QSValue/binary>>} -> [{<<"text">>, <<QSValue/binary>>},{<<"callback_data">>, Mark}];
-%%            {true, _} -> [{<<"text">>, << 226,156,133, SValue/binary>>},{<<"callback_data">>, Mark}];
-%%            {false, _} -> [{<<"text">>, SValue},{<<"callback_data">>, Mark}]
-%%          end;
-%%      Loop([Head|Tail], Label) -> [Loop(Head,Label)] ++ Loop(Tail,Label)
-%%  end.
+handle_cast( {Cid, <<"/rec">>}, _State) ->
+  Text = <<"На какое время хотите записаться? Можно отметить несколько промежутков времени"/utf8>>,
+  Buttons = builder:build_buttons_inline_time(),
+  sendMessageClient(Cid, Text, inline_keyboard, Buttons, recording_on_time);
+handle_cast( {Cid, {Buttons, <<"Enter">>}}, {recording_on_time, MsgID}) ->
+%%  написать метод для сохранения состояния кнопок
+  sendMessageClient(Cid, <<"Время записано"/utf8>>, state);
+handle_cast( {Cid, {Buttons, <<"Cancel">>}}, {recording_on_time, MsgID}) ->
+  sendMessageClient(Cid, <<"Запись отменена. Можем повторить командой /rec"/utf8>>, state);
+handle_cast( {Cid, {Buttons, Button}}, {recording_on_time, MsgID}) ->
+  F=fun Loop([], Label) -> [];
+    Loop([{<<"text">>, SValue},{<<"callback_data">>, Mark}], Label) ->
+      case {Mark =:= Label, SValue} of
+        {true, <<226,156,133,QSValue/binary>>} -> [{<<"text">>, <<QSValue/binary>>},{<<"callback_data">>, Mark}];
+        {true, _} -> [{<<"text">>, << 226,156,133, SValue/binary>>},{<<"callback_data">>, Mark}];
+        {false, _} -> [{<<"text">>, SValue},{<<"callback_data">>, Mark}]
+      end;
+    Loop([Head|Tail], Label) -> [Loop(Head,Label)] ++ Loop(Tail,Label)
+    end,
+  NewButtons = F(Buttons, Button),
+  editMessageClient(Cid, MsgID, NewButtons);
+handle_cast( {Cid, _Else}, {recording_on_time, _MsgID}) ->
+  sendMessageClient(Cid, <<"Операция прервана, но можем повторить"/utf8>>, state);
 
 handle_cast( {Cid, <<"Привет"/utf8>>}, _State) ->
   sendMessageClient(Cid, << 226,152,173, <<"Привет"/utf8>>/binary>>, state);
@@ -141,6 +153,16 @@ lazy_calc(Fun) ->
     error:Reason -> {<<"Incorrect expression">>, state}
   end.
 
+editMessageClient(Cid, MsgID, Buttons) ->
+  Msg = [{<<"chat_id">>, Cid}, {<<"message_id">>, MsgID}] ++ [{<<"reply_markup">>, [{<<"inline_keyboard">>, Buttons}] }],
+  {ok, Result} = httpc:request(
+    post,
+    builder:build_request("editMessageReplyMarkup", Msg),
+    [],
+    [{body_format, binary}]
+  ),
+  {noreply, {recording_on_time, MsgID}, infinity}.
+
 sendMessageClient(Cid, Text, State) ->
   sendMessageClient(builder:build_Msg(Cid, Text), State).
 sendMessageClient(Cid, Text, keyboard, Buttons, State) ->
@@ -148,7 +170,8 @@ sendMessageClient(Cid, Text, keyboard, Buttons, State) ->
 sendMessageClient(Cid, Text, inline_keyboard, Buttons, State) ->
   {ok, Result} = sendMessageClient(builder:build_inline_keyboard(Cid, Text, Buttons)),
   io:format("~p~n", [Result]),
-  MsgID = parser:parse(Result, sendMessage),
+  {_,_,Body} = Result,
+  {_, MsgID} = parser:parse(Body, sendMessage),
   {noreply, {State, MsgID}, infinity}.
 sendMessageClient(Cid, Text, hide_keybroad, State) ->
   sendMessageClient(builder:build_hide_keyboard(Cid, Text), State).
