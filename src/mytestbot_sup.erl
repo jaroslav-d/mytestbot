@@ -39,6 +39,11 @@ init([]) ->
       start => {worker_sup, start_link, []}, 
       restart => transient,
       type => supervisor
+    },
+    #{id => base_manager,
+      start => {base_manager, start_link, []},
+      restart => permanent,
+      shutdown => brutal_kill
     }
   ],
 %  ChildSpecs = [],

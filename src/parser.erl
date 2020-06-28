@@ -30,9 +30,10 @@ parseUpdateInlineKBoard([Head|_Tail]) ->
   {_, Uid} = findRec(Head, <<"update_id">>),
   Chat = findRec(Head, <<"chat">>),
   {_, Cid} = findRec(Chat, <<"id">>),
+  {_, MID} = findRec(Head, <<"message_id">>),
   {_, Button} = findRec(Head, <<"data">>),
   {_, Buttons} = findRec(Head, <<"inline_keyboard">>),
-  {{offset, Uid+1}, {Cid, {Buttons, Button}}}.
+  {{offset, Uid+1}, {Cid, {MID, Buttons, Button}}}.
 
 findRec({Key, Value}, TargetKey) when TargetKey =:= Key -> {Key, Value};
 findRec({_, Value}, TargetKey) when is_list(Value) -> findRec(Value,TargetKey);

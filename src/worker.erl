@@ -4,6 +4,8 @@
 -include_lib("stdlib/include/qlc.hrl").
 -include("db_schema.hrl").
 
+-define(BM, base_manager).
+
 start_link() ->
   gen_server:start_link(?MODULE, [], []).
 
@@ -14,7 +16,7 @@ handle_call(_Request, _From, _State) ->
   ok.
 
 handle_cast( {Cid, <<"/start">>}, _State) ->
-  case is_registered(Cid) of
+  case gen_server:call(?BM, {is_registered, Cid}) of
     true -> sendMessageClient(Cid, <<"Повторная регистрация не требуется"/utf8>>, state);
     false ->
       Text = <<"Привет, друг! Введи пожалуйста свои ФИО, чтобы мы дальше могли общаться без проблем"/utf8>>,
@@ -25,7 +27,14 @@ handle_cast( {Cid, <<"Ja">>}, registration) ->
 handle_cast( {Cid, <<"Nein">>}, registration) ->
   sendMessageClient(Cid, <<"При желании, зарегистрироваться в сервисе можете набрав команду /start"/utf8>>, hide_keyboard, state);
 handle_cast( {Cid, Message}, registration) ->
-  case registration(Cid, Message) of
+  Result = case gen_server:call(?BM, {registration, Cid, Message}) of
+             {atomic, no_record} -> {<<"Таких ФИО нет в базе, хотите попробовать еще раз?"/utf8>>, [<<"Ja"/utf8>>, <<"Nein"/utf8>>], registration};
+             {atomic, ok} -> {<<"Вы успешно зарегистрированны в базе"/utf8>>, state};
+             {atomic, true} -> {<<"Таки вы уже в списке"/utf8>>, state};
+             {atomic, false} -> {<<"Такой человек уже зарегистрирован, хотите попробовать еще раз?"/utf8>>, [<<"Ja"/utf8>>, <<"Nein"/utf8>>], registration};
+             {atomic, no_name} -> {<<"Неверно введены ФИО, попробовать еще раз?"/utf8>>, [<<"Ja"/utf8>>, <<"Nein"/utf8>>], registration}
+           end,
+  case Result of
     {Text, state} -> sendMessageClient(Cid, Text, state);
     {Text, Buttons, registration} -> sendMessageClient(Cid, Text, keyboard, Buttons, registration)
   end;
@@ -34,25 +43,59 @@ handle_cast( {Cid, <<"/rec">>}, _State) ->
   Text = <<"На какое время хотите записаться? Можно отметить несколько промежутков времени"/utf8>>,
   Buttons = builder:build_buttons_inline_time(),
   sendMessageClient(Cid, Text, inline_keyboard, Buttons, recording_on_time);
-handle_cast( {Cid, {Buttons, <<"Enter">>}}, {recording_on_time, MsgID}) ->
-%%  написать метод для сохранения состояния кнопок
-  sendMessageClient(Cid, <<"Время записано"/utf8>>, state);
+handle_cast( {Cid, {ThisMsgID, Buttons, Button}}, {State, MsgID}) when ThisMsgID =:= MsgID ->
+  handle_cast( {Cid, {Buttons, Button}}, {State, MsgID});
+handle_cast( {Cid, {TimeButtons, <<"Enter">>}}, {recording_on_time, MsgID}) ->
+  F = fun Loop([]) -> [];
+    Loop([{<<"text">>, <<226,156,133,QSValue/binary>>},{<<"callback_data">>, Mark}]) -> Mark;
+    Loop([{_,_},{_,_}]) -> [];
+    Loop([Head|Tail]) -> [Loop(Head)] ++ Loop(Tail)
+      end,
+  MarkTime = lists:filter(fun(Elem) -> Elem =/= [] end, lists:append(F(TimeButtons))),
+  DateButtons = builder:build_buttons_inline_date(),
+  sendMessageClient(
+    Cid,
+    <<"Промежуточки времени отмечены. Теперь выберем даты"/utf8>>,
+    inline_keyboard,
+    DateButtons,
+    {recording_on_date, MarkTime}
+  );
 handle_cast( {Cid, {Buttons, <<"Cancel">>}}, {recording_on_time, MsgID}) ->
   sendMessageClient(Cid, <<"Запись отменена. Можем повторить командой /rec"/utf8>>, state);
 handle_cast( {Cid, {Buttons, Button}}, {recording_on_time, MsgID}) ->
-  F=fun Loop([], Label) -> [];
-    Loop([{<<"text">>, SValue},{<<"callback_data">>, Mark}], Label) ->
-      case {Mark =:= Label, SValue} of
-        {true, <<226,156,133,QSValue/binary>>} -> [{<<"text">>, <<QSValue/binary>>},{<<"callback_data">>, Mark}];
-        {true, _} -> [{<<"text">>, << 226,156,133, SValue/binary>>},{<<"callback_data">>, Mark}];
-        {false, _} -> [{<<"text">>, SValue},{<<"callback_data">>, Mark}]
-      end;
-    Loop([Head|Tail], Label) -> [Loop(Head,Label)] ++ Loop(Tail,Label)
-    end,
-  NewButtons = F(Buttons, Button),
-  editMessageClient(Cid, MsgID, NewButtons);
+  NewButtons = checkbox_handler(Buttons, Button),
+  editMessageClient(Cid, {recording_on_time, MsgID}, NewButtons);
 handle_cast( {Cid, _Else}, {recording_on_time, _MsgID}) ->
   sendMessageClient(Cid, <<"Операция прервана, но можем повторить"/utf8>>, state);
+handle_cast( {Cid, {DateButtons, <<"Enter">>}}, {{recording_on_date, MarkTime}, MsgID}) ->
+  F = fun Loop([]) -> [];
+    Loop([{<<"text">>, <<226,156,133,QSValue/binary>>},{<<"callback_data">>, Mark}]) -> Mark;
+    Loop([{_,_},{_,_}]) -> [];
+    Loop([Head|Tail]) -> [Loop(Head)] ++ Loop(Tail)
+      end,
+  MarkDate = lists:filter(fun(Elem) -> Elem =/= [] end, lists:append(F(DateButtons))),
+  case gen_server:call(?BM, {create_record, Cid, {MarkDate, MarkTime}}) of
+    hes_marked -> sendMessageClient(Cid, <<"Ты че опять записываешься, пёс? Иди гуляй"/utf8>>, state);
+    oshibochka -> sendMessageClient(Cid, <<"Чет какая-то ошибочка. Я не знаю, что произошло"/utf8>>, state);
+    {atomic, all_busy} -> sendMessageClient(Cid, <<"К сожалению, все занято. Попробуйте выбрать другое время и дату"/utf8>>, state);
+    {atomic, {Date, Time}} ->
+      Text = <<"Вы успешно записались в очередь на "/utf8, Date/binary, " в "/utf8, Time/binary>>,
+      sendMessageClient(Cid, Text, state);
+    hes_cheater -> sendMessageClient(Cid, <<"Ах ты читерская жопа, как тебе удалось записаться?"/utf8>>, state);
+    not_registered -> sendMessageClient(Cid, <<"Слышь, пёс, катись регистрироваться"/utf8>>, state)
+  end;
+handle_cast( {Cid, {Buttons, <<"Cancel">>}}, {{recording_on_date, MarkTime}, MsgID}) ->
+  sendMessageClient(Cid, <<"Запись отменена, но можем повторить командой /rec"/utf8>>, state);
+handle_cast( {Cid, {Buttons, Button}}, {{recording_on_date, MarkTime}, MsgID}) ->
+  NewButtons = checkbox_handler(Buttons, Button),
+  editMessageClient(Cid, {{recording_on_date, MarkTime}, MsgID}, NewButtons);
+handle_cast( {Cid, _Else}, {{recording_on_date, _MarkTime}, _MsgID}) ->
+  sendMessageClient(Cid, <<"Операция прервана, но можем повторить"/utf8>>, state);
+
+handle_cast( {Cid, <<"/not">>}, _State) ->
+  sendMessageClient(Cid, <<"За сколько минут предупредить о начале события?"/utf8>>, notification_of_begin);
+handle_cast( {Cid, Time}, notification_of_begin) ->
+  sendMessageClient(Cid, <<"Уведомление установлено">>);
 
 handle_cast( {Cid, <<"Привет"/utf8>>}, _State) ->
   sendMessageClient(Cid, << 226,152,173, <<"Привет"/utf8>>/binary>>, state);
@@ -60,6 +103,9 @@ handle_cast( {Cid, <<"Hello"/utf8>>}, _State) ->
   sendMessageClient(Cid, <<"I need your skills"/utf8>>, trigger);
 handle_cast( {Cid, <<"You son over bitch. I'm in">>}, trigger) ->
   sendMessageClient(Cid, <<"You are the Rick's friend">>, state);
+
+handle_cast( {Cid, <<"можем повторить?"/utf8>>}, _State) ->
+  sendMessageClient(Cid, <<"конечно можем"/utf8>>, state);
 
 handle_cast( {Cid, <<"/calc"/utf8>>}, _State) ->
   sendMessageClient(Cid, <<"Please, enter your expression">>, calc);
@@ -104,34 +150,15 @@ handle_cast( {Cid, _Else}, _State) ->
 handle_info(_Info, _State) ->
   ok.
 
-is_registered(Cid) ->
-  F = fun() -> builder:build_select_db_client('$1', '$2', '$3', '$4', Cid) end,
-  case mnesia:transaction(F) of
-    {atomic, []} ->
-      false;
-    {atomic, _Record} ->
-      true
-  end.
-
-registration(Cid, Message) ->
-  F = try binary:split(Message, [<<" "/utf8>>], [global]) of
-    [LastName, FirstName, MiddleName] ->
-      fun() ->
-        case builder:build_select_db_client('$1', LastName, FirstName, MiddleName, '$2') of
-          [] -> no_record;
-          [[Rid, undefined]] -> builder:build_update_db_client(Rid, LastName, FirstName, MiddleName, Cid);
-          [[_Rid, DbCid]] -> DbCid == Cid
-        end
-      end
-  catch error:Reason1 -> no_name
-  end,
-  try mnesia:transaction(F) of
-    {atomic, no_record} -> {<<"Таких ФИО нет в базе, хотите попробовать еще раз?"/utf8>>, [<<"Ja"/utf8>>, <<"Nein"/utf8>>], registration};
-    {atomic, ok} -> {<<"Вы успешно зарегистрированны в базе"/utf8>>, state};
-    {atomic, true} -> {<<"Таки вы уже в списке"/utf8>>, state};
-    {atomic, false} -> {<<"Такой человек уже зарегистрирован, хотите попробовать еще раз?"/utf8>>, [<<"Ja"/utf8>>, <<"Nein"/utf8>>], registration}
-  catch error:Reason2 -> {<<"Неверно введены ФИО, попробовать еще раз?"/utf8>>, [<<"Ja"/utf8>>, <<"Nein"/utf8>>], registration}
-  end.
+checkbox_handler([], _Label) -> [];
+checkbox_handler([{<<"text">>, SValue},{<<"callback_data">>, Mark}], Label) ->
+  case {Mark =:= Label, SValue} of
+    {true, <<226,156,133,QSValue/binary>>} -> [{<<"text">>, <<QSValue/binary>>},{<<"callback_data">>, Mark}];
+    {true, _} -> [{<<"text">>, << 226,156,133, SValue/binary>>},{<<"callback_data">>, Mark}];
+    {false, _} -> [{<<"text">>, SValue},{<<"callback_data">>, Mark}]
+  end;
+checkbox_handler([Head|Tail], Label) ->
+  [checkbox_handler(Head,Label)] ++ checkbox_handler(Tail,Label).
 
 calc(Expression) ->
   try calculator:calc(Expression) of
@@ -153,7 +180,7 @@ lazy_calc(Fun) ->
     error:Reason -> {<<"Incorrect expression">>, state}
   end.
 
-editMessageClient(Cid, MsgID, Buttons) ->
+editMessageClient(Cid, {State, MsgID}, Buttons) ->
   Msg = [{<<"chat_id">>, Cid}, {<<"message_id">>, MsgID}] ++ [{<<"reply_markup">>, [{<<"inline_keyboard">>, Buttons}] }],
   {ok, Result} = httpc:request(
     post,
@@ -161,7 +188,7 @@ editMessageClient(Cid, MsgID, Buttons) ->
     [],
     [{body_format, binary}]
   ),
-  {noreply, {recording_on_time, MsgID}, infinity}.
+  {noreply, {State, MsgID}, infinity}.
 
 sendMessageClient(Cid, Text, State) ->
   sendMessageClient(builder:build_Msg(Cid, Text), State).
