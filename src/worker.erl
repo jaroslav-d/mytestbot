@@ -46,20 +46,10 @@ handle_cast( {Cid, <<"/rec">>}, _State) ->
 handle_cast( {Cid, {ThisMsgID, Buttons, Button}}, {State, MsgID}) when ThisMsgID =:= MsgID ->
   handle_cast( {Cid, {Buttons, Button}}, {State, MsgID});
 handle_cast( {Cid, {TimeButtons, <<"Enter">>}}, {recording_on_time, MsgID}) ->
-  F = fun Loop([]) -> [];
-    Loop([{<<"text">>, <<226,156,133,QSValue/binary>>},{<<"callback_data">>, Mark}]) -> Mark;
-    Loop([{_,_},{_,_}]) -> [];
-    Loop([Head|Tail]) -> [Loop(Head)] ++ Loop(Tail)
-      end,
-  MarkTime = lists:filter(fun(Elem) -> Elem =/= [] end, lists:append(F(TimeButtons))),
+  MarkTime = parser:get_marks(TimeButtons),
   DateButtons = builder:build_buttons_inline_date(),
-  sendMessageClient(
-    Cid,
-    <<"Промежуточки времени отмечены. Теперь выберем даты"/utf8>>,
-    inline_keyboard,
-    DateButtons,
-    {recording_on_date, MarkTime}
-  );
+  Text = <<"Промежуточки времени отмечены. Теперь выберем даты"/utf8>>,
+  sendMessageClient(Cid, Text, inline_keyboard, DateButtons, {recording_on_date, MarkTime});
 handle_cast( {Cid, {Buttons, <<"Cancel">>}}, {recording_on_time, MsgID}) ->
   sendMessageClient(Cid, <<"Запись отменена. Можем повторить командой /rec"/utf8>>, state);
 handle_cast( {Cid, {Buttons, Button}}, {recording_on_time, MsgID}) ->
@@ -68,12 +58,7 @@ handle_cast( {Cid, {Buttons, Button}}, {recording_on_time, MsgID}) ->
 handle_cast( {Cid, _Else}, {recording_on_time, _MsgID}) ->
   sendMessageClient(Cid, <<"Операция прервана, но можем повторить"/utf8>>, state);
 handle_cast( {Cid, {DateButtons, <<"Enter">>}}, {{recording_on_date, MarkTime}, MsgID}) ->
-  F = fun Loop([]) -> [];
-    Loop([{<<"text">>, <<226,156,133,QSValue/binary>>},{<<"callback_data">>, Mark}]) -> Mark;
-    Loop([{_,_},{_,_}]) -> [];
-    Loop([Head|Tail]) -> [Loop(Head)] ++ Loop(Tail)
-      end,
-  MarkDate = lists:filter(fun(Elem) -> Elem =/= [] end, lists:append(F(DateButtons))),
+  MarkDate = parser:get_marks(DateButtons),
   case gen_server:call(?BM, {create_record, Cid, {MarkDate, MarkTime}}) of
     hes_marked -> sendMessageClient(Cid, <<"Ты че опять записываешься, пёс? Иди гуляй"/utf8>>, state);
     oshibochka -> sendMessageClient(Cid, <<"Чет какая-то ошибочка. Я не знаю, что произошло"/utf8>>, state);
@@ -105,7 +90,7 @@ handle_cast( {Cid, <<"You son over bitch. I'm in">>}, trigger) ->
   sendMessageClient(Cid, <<"You are the Rick's friend">>, state);
 
 handle_cast( {Cid, <<"можем повторить?"/utf8>>}, _State) ->
-  sendMessageClient(Cid, <<"конечно можем"/utf8>>, state);
+  sendMessageClient(Cid, <<"конечно можем и не раз, весь мир в труху, но потом..."/utf8>>, state);
 
 handle_cast( {Cid, <<"/calc"/utf8>>}, _State) ->
   sendMessageClient(Cid, <<"Please, enter your expression">>, calc);

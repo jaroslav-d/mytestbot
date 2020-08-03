@@ -47,6 +47,13 @@ findRec([Head|Tail], TargetKey) ->
 
   %[{<<"update_id">>, 121244},{<<"message">>, [{<<"message_id">>,22},{<<"from">>,[{<<"id">>,530167187},{<<"is_bot">>,false},{<<"first_name">>,<<"Yaroslav">>},{<<"last_name">>,<<"Drozdov">>},{<<"language_code">>,<<"ru">>}]},{<<"chat">>, [{<<"id">>, 121452},{<<"first_name">>,<<"Yaroslav">>},{<<"last_name">>,<<"Drozdov">>},{<<"type">>,<<"private">>}]},{<<"date">>,1575245772},{<<"text">>, <<"Text">>}]}].
 
+get_marks(Buttons) ->
+  lists:filter(fun(Elem) -> Elem =/= [] end, lists:append(parse_buttons(Buttons))).
+parse_buttons([]) -> [];
+parse_buttons([{<<"text">>, <<226,156,133,Value/binary>>},{<<"callback_data">>, Mark}]) -> Mark;
+parse_buttons([{_,_},{_,_}]) -> [];
+parse_buttons([Head|Tail]) -> [parse_buttons(Head)] ++ parse_buttons(Tail).
+
 parse_exp(Bin) -> parse_exp(Bin, {0, 0}, []).
 parse_exp(<<>>, _, []) -> empty;
 parse_exp(<<"">>, _, []) -> empty;
